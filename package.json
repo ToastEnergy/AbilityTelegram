@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@types/node-telegram-bot-api": "^0.64.9",
+    "node-telegram-bot-api": "^0.66.0",
+    "postgres": "^3.4.7"
+  }
+}
