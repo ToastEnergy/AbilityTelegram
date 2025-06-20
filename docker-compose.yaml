@@ -9,7 +9,6 @@ services:
   postgres:
     image: postgres:latest
     environment:
-      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: change_me
       POSTGRES_DB: postgres
     volumes:
