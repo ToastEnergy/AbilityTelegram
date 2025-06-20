@@ -9,7 +9,6 @@ if (!process.env.DATABASE_URL || !process.env.TOKEN) {
 const sql = postgres(process.env.DATABASE_URL);
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
-
 bot.onText(/\/add (.+)/, async (msg, match) => {
     if (!msg.reply_to_message?.from) {
         await bot.sendMessage(msg.chat.id, 'Please reply to a message', { reply_to_message_id: msg.message_id });
