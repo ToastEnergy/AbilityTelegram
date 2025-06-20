@@ -1,0 +1,17 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://postgres:change_me@postgres:5432/postgres
+      - TOKEN=token
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: postgres
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
