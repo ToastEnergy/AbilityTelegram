@@ -10,16 +10,17 @@ const sql = postgres(process.env.DATABASE_URL);
 await sql`
 CREATE TABLE IF NOT EXISTS abilities (
     id SERIAL PRIMARY KEY,
-    group_id INTEGER,
+    group_id TEXT,
     name VARCHAR(255) UNIQUE NOT NULL
 );
 `
 
 await sql`
 CREATE TABLE IF NOT EXISTS points (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    user_id TEXT NOT NULL,
     ability_id INTEGER REFERENCES abilities(id) ON DELETE CASCADE,
-    points INTEGER DEFAULT 0 NOT NULL
+    group_id TEXT,
+    points INTEGER DEFAULT 0 NOT NULL,
+    PRIMARY KEY (user_id, ability_id, group_id)
 );
 `

@@ -10,25 +10,28 @@ const sql = postgres(process.env.DATABASE_URL);
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
 bot.onText(/\/add (.+)/, async (msg, match) => {
-    const args = match![1].split(' ').filter(x => x.length > 0);
-    console.log(msg.reply_to_message?.from);
-    // let user_id: number;
-    // let ability: string;
+    if (!msg.reply_to_message?.from) {
+        await bot.sendMessage(msg.chat.id, 'Please reply to a message', { reply_to_message_id: msg.message_id });
+        return;
+    }
 
+    if (msg.reply_to_message?.from.id == msg.from!.id) {
+        await bot.sendMessage(msg.chat.id, 'You cannot add points to yourself', { reply_to_message_id: msg.message_id });
+        return;
+    }
 
-    // if (msg.reply_to_message) {
-    //     user_id = msg.reply_to_message.from!.id;
-    //     ability = args[0];
-    // } else {
+    const abilities = await sql`SELECT id, name FROM abilities WHERE group_id = ${msg.chat.id} AND name = ${match![1]}`;
+    if (abilities.length == 0) {
+        await bot.sendMessage(msg.chat.id, `Ability <b>${match![1]}</b> does not exist`, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
+        return;
+    }
 
-    //     ability = args[1];
-    // }
+    const points = await sql`INSERT INTO points (user_id, ability_id, group_id, points) VALUES (${msg.reply_to_message.from!.id}, ${abilities[0].id}, ${msg.chat.id}, 1) ON CONFLICT (user_id, ability_id, group_id) DO UPDATE SET points = points.points + 1 RETURNING points.points`;
 
-    // if (user_id === msg.from!.id) {
-    //     await bot.sendMessage(msg.chat.id, 'You cannot add yourself', { reply_to_message_id: msg.message_id });
-    //     return;
-    // }
-
+    await bot.sendMessage(msg.chat.id, `Added 1 <b>${match![1]}</b> point to @${msg.reply_to_message.from.username}\nThey now have <b>${points[0].points}</b> points`, {
+        reply_to_message_id: msg.message_id,
+        parse_mode: 'HTML'
+    });
 });
 
 bot.onText(/\/create (.+)/, async (msg, match) => {
