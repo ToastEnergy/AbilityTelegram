@@ -35,7 +35,7 @@ bot.onText(/\/add (.+)/, async (msg, match) => {
 });
 
 bot.onText(/\/create (.+)/, async (msg, match) => {
-    if (msg.chat.type != 'group') {
+    if (["group", "supergroup"].indexOf(msg.chat.type) === -1) {
         bot.sendMessage(msg.chat.id, 'You are not in a group!');
         return
     }
