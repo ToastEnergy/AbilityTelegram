@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "dev": "bun main.ts",
-    "migrate": "node-pg-migrate"
+    "migrate": "node-pg-migrate",
+    "start": "bun src/main.ts"
   },
   "dependencies": {
     "@types/node-telegram-bot-api": "^0.64.9",

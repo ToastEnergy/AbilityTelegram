@@ -1,9 +1,13 @@
 FROM oven/bun:latest
 
-COPY package.json ./
-COPY bun.lock ./
-COPY src ./
-COPY docker-entrypoint.sh ./
+WORKDIR /app
 
+COPY package.json .
+COPY bun.lock .
 RUN bun install
+
+COPY . .
+
+RUN chmod +x docker-entrypoint.sh
+
 ENTRYPOINT [ "./docker-entrypoint.sh" ]
