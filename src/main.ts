@@ -34,6 +34,31 @@ bot.onText(/\/add (.+)/, async (msg, match) => {
     });
 });
 
+bot.onText(/\/leaderboard (.+)/, async (msg, match) => {
+
+    const abilities = await sql`SELECT id, name FROM abilities WHERE group_id = ${msg.chat.id} AND name = ${match![1]}`;
+    if (abilities.length == 0) {
+        await bot.sendMessage(msg.chat.id, `Ability <b>${match![1]}</b> does not exist`, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
+        return;
+    }
+
+    const points = await sql`SELECT user_id, points FROM points WHERE ability_id = ${abilities[0].id} AND group_id = ${msg.chat.id} ORDER BY points DESC`;
+
+    let leaderboard = '';
+
+    for (const point of points) {
+        const info = await bot.getChatMember(msg.chat.id, point.user_id);
+        if (info.user)
+            leaderboard += `<b>${info.user.username}</b>: ${point.points}\n`;
+        else leaderboard += `<b>${point.user_id}</b>: ${point.points}\n`;
+    }
+
+    await bot.sendMessage(msg.chat.id, `<b>${match![1]}</b> <u>leaderboard:</u>\n\n${leaderboard}`, {
+        reply_to_message_id: msg.message_id,
+        parse_mode: 'HTML'
+    });
+});
+
 bot.onText(/\/create (.+)/, async (msg, match) => {
     if (["group", "supergroup"].indexOf(msg.chat.type) === -1) {
         bot.sendMessage(msg.chat.id, 'You are not in a group!');
