@@ -55,7 +55,8 @@ bot.onText(/\/leaderboard (.+)/, async (msg, match) => {
 
     await bot.sendMessage(msg.chat.id, `<b>${match![1]}</b> <u>leaderboard:</u>\n\n${leaderboard}`, {
         reply_to_message_id: msg.message_id,
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
+        disable_notification: true
     });
 });
 
