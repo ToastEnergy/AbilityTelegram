@@ -49,7 +49,7 @@ bot.onText(/\/leaderboard (.+)/, async (msg, match) => {
     for (const point of points) {
         const info = await bot.getChatMember(msg.chat.id, point.user_id);
         if (info.user)
-            leaderboard += `<b>${info.user.username}</b>: ${point.points}\n`;
+            leaderboard += `@${info.user.username}: ${point.points}\n`;
         else leaderboard += `<b>${point.user_id}</b>: ${point.points}\n`;
     }
 
