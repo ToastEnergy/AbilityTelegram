@@ -67,6 +67,39 @@ bot.onText(/\/create (.+)/, async (msg, match) => {
         bot.sendMessage(msg.chat.id, 'Please specify an ability');
 });
 
+bot.onText(/\/remove (.+)/, async (msg, match) => {
+    if (["group", "supergroup"].indexOf(msg.chat.type) === -1) {
+        bot.sendMessage(msg.chat.id, 'You are not in a group!');
+        return
+    }
+
+    const admins = await bot.getChatAdministrators(msg.chat.id);
+    const isAdmin = admins.some(admin => admin.user.id == msg.from!.id);
+
+    if (!isAdmin) {
+        bot.sendMessage(msg.chat.id, 'Only admins can use this command!');
+        return
+    }
+
+    if (match) {
+        const ability = match[1];
+        const check = await sql`SELECT id FROM abilities WHERE group_id = ${msg.chat.id} AND name = ${ability}`;
+        if (check.length == 0) {
+            await bot.sendMessage(msg.chat.id, `Ability <b>${ability}</b> does not exist`, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
+            return;
+        }
+
+        await sql`DELETE FROM abilities WHERE group_id = ${msg.chat.id} AND id=${check[0].id}`;
+
+        await bot.sendMessage(msg.chat.id, `Deleted ability <b>${ability}</b>`, {
+            reply_to_message_id: msg.message_id,
+            parse_mode: 'HTML'
+        });
+    } else
+        bot.sendMessage(msg.chat.id, 'Please specify an ability');
+});
+
+
 bot.onText(/\/list/, async (msg) => {
     const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${msg.chat.id}`;
     if (abilities.length == 0)
