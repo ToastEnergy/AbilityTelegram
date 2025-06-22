@@ -35,7 +35,17 @@ bot.onText(/^\/add(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
 
     await bot.sendMessage(msg.chat.id, `Added 1 <b>${match![1]}</b> point to @${msg.reply_to_message.from.username}\nThey now have <b>${points[0].points}</b> points`, {
         reply_to_message_id: msg.message_id,
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    {
+                        text: 'Remove',
+                        callback_data: `remove_point-${abilities[0].id}-${msg.reply_to_message.from!.id}`
+                    }
+                ]
+            ]
+        }
     });
 });
 
@@ -139,7 +149,6 @@ bot.onText(/^\/remove(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
     });
 });
 
-
 bot.onText(/\/list/, async (msg) => {
     const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${msg.chat.id}`;
     if (abilities.length == 0)
@@ -148,4 +157,40 @@ bot.onText(/\/list/, async (msg) => {
         const list = abilities.map(ability => `<b>${ability.name}</b>`).join('\n');
         await bot.sendMessage(msg.chat.id, list, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
     }
+});
+
+bot.on('callback_query', async (callbackQuery) => {
+    if (callbackQuery.data?.startsWith('remove_point')) {
+        const abilityId = callbackQuery.data.split('-')[1];
+        const userId = callbackQuery.data.split('-')[2];
+
+        if (!callbackQuery.message?.reply_to_message?.from?.id) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 The original message got deleted",
+                show_alert: true
+            });
+            return;
+        }
+
+        if (callbackQuery.message?.reply_to_message?.from?.id != callbackQuery.from.id) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 You didn't add this point",
+                show_alert: true
+            });
+        } else {
+            await sql`DELETE FROM points WHERE user_id = ${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id}`;
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "👍 Removed point",
+                show_alert: true
+            });
+            // edit the message
+            await bot.editMessageText('<s>Canceled</s>', {
+                message_id: callbackQuery.message!.message_id,
+                chat_id: callbackQuery.message!.chat.id,
+                parse_mode: 'HTML',
+            });
+        }
+    }
+
+    bot.answerCallbackQuery(callbackQuery.id);
 });
