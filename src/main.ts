@@ -9,9 +9,14 @@ if (!process.env.DATABASE_URL || !process.env.TOKEN) {
 const sql = postgres(process.env.DATABASE_URL);
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
-bot.onText(/\/add (.+)/, async (msg, match) => {
+bot.onText(/^\/add(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
     if (!msg.reply_to_message?.from) {
         await bot.sendMessage(msg.chat.id, 'Please reply to a message', { reply_to_message_id: msg.message_id });
+        return;
+    }
+
+    if (!match || !match[1]) {
+        await bot.sendMessage(msg.chat.id, 'Please specify an ability', { reply_to_message_id: msg.message_id });
         return;
     }
 
@@ -34,7 +39,12 @@ bot.onText(/\/add (.+)/, async (msg, match) => {
     });
 });
 
-bot.onText(/\/leaderboard (.+)/, async (msg, match) => {
+bot.onText(/^\/leaderboard(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
+
+    if (!match || !match[1]) {
+        await bot.sendMessage(msg.chat.id, 'Please specify an ability', { reply_to_message_id: msg.message_id });
+        return;
+    }
 
     const abilities = await sql`SELECT id, name FROM abilities WHERE group_id = ${msg.chat.id} AND name = ${match![1]}`;
     if (abilities.length == 0) {
@@ -60,7 +70,7 @@ bot.onText(/\/leaderboard (.+)/, async (msg, match) => {
     });
 });
 
-bot.onText(/\/create (.+)/, async (msg, match) => {
+bot.onText(/^\/create(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
     if (["group", "supergroup"].indexOf(msg.chat.type) === -1) {
         bot.sendMessage(msg.chat.id, 'You are not in a group!');
         return
@@ -74,26 +84,28 @@ bot.onText(/\/create (.+)/, async (msg, match) => {
         return
     }
 
-    if (match) {
-        const ability = match[1];
-        try {
-            await sql`INSERT INTO abilities (group_id, name) VALUES (${msg.chat.id}, ${ability})`;
-        } catch (e) {
-            if (e.code === '23505')
-                await bot.sendMessage(msg.chat.id, `Ability ${ability} already exists`, { reply_to_message_id: msg.message_id });
-            else
-                await bot.sendMessage(msg.chat.id, 'Something went wrong', { reply_to_message_id: msg.message_id });
-            return;
-        }
-        await bot.sendMessage(msg.chat.id, `Added ability <b>${ability}</b>`, {
-            reply_to_message_id: msg.message_id,
-            parse_mode: 'HTML'
-        });
-    } else
-        bot.sendMessage(msg.chat.id, 'Please specify an ability');
+    if (!match || !match[1]) {
+        await bot.sendMessage(msg.chat.id, 'Please specify an ability', { reply_to_message_id: msg.message_id });
+        return;
+    }
+
+    const ability = match[1];
+    try {
+        await sql`INSERT INTO abilities (group_id, name) VALUES (${msg.chat.id}, ${ability})`;
+    } catch (e) {
+        if (e.code === '23505')
+            await bot.sendMessage(msg.chat.id, `Ability ${ability} already exists`, { reply_to_message_id: msg.message_id });
+        else
+            await bot.sendMessage(msg.chat.id, 'Something went wrong', { reply_to_message_id: msg.message_id });
+        return;
+    }
+    await bot.sendMessage(msg.chat.id, `Added ability <b>${ability}</b>`, {
+        reply_to_message_id: msg.message_id,
+        parse_mode: 'HTML'
+    });
 });
 
-bot.onText(/\/remove (.+)/, async (msg, match) => {
+bot.onText(/^\/remove(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
     if (["group", "supergroup"].indexOf(msg.chat.type) === -1) {
         bot.sendMessage(msg.chat.id, 'You are not in a group!');
         return
@@ -107,22 +119,24 @@ bot.onText(/\/remove (.+)/, async (msg, match) => {
         return
     }
 
-    if (match) {
-        const ability = match[1];
-        const check = await sql`SELECT id FROM abilities WHERE group_id = ${msg.chat.id} AND name = ${ability}`;
-        if (check.length == 0) {
-            await bot.sendMessage(msg.chat.id, `Ability <b>${ability}</b> does not exist`, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
-            return;
-        }
+    if (!match || !match[1]) {
+        await bot.sendMessage(msg.chat.id, 'Please specify an ability', { reply_to_message_id: msg.message_id });
+        return;
+    }
 
-        await sql`DELETE FROM abilities WHERE group_id = ${msg.chat.id} AND id=${check[0].id}`;
+    const ability = match[1];
+    const check = await sql`SELECT id FROM abilities WHERE group_id = ${msg.chat.id} AND name = ${ability}`;
+    if (check.length == 0) {
+        await bot.sendMessage(msg.chat.id, `Ability <b>${ability}</b> does not exist`, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
+        return;
+    }
 
-        await bot.sendMessage(msg.chat.id, `Deleted ability <b>${ability}</b>`, {
-            reply_to_message_id: msg.message_id,
-            parse_mode: 'HTML'
-        });
-    } else
-        bot.sendMessage(msg.chat.id, 'Please specify an ability');
+    await sql`DELETE FROM abilities WHERE group_id = ${msg.chat.id} AND id=${check[0].id}`;
+
+    await bot.sendMessage(msg.chat.id, `Deleted ability <b>${ability}</b>`, {
+        reply_to_message_id: msg.message_id,
+        parse_mode: 'HTML'
+    });
 });
 
 
