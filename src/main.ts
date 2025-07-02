@@ -1,4 +1,4 @@
-import TelegramBot from "node-telegram-bot-api";
+import TelegramBot, { InlineQueryResultArticle } from "node-telegram-bot-api";
 import postgres from "postgres";
 
 if (!process.env.DATABASE_URL || !process.env.TOKEN) {
@@ -33,20 +33,32 @@ bot.onText(/^\/add(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
 
     const points = await sql`INSERT INTO points (user_id, ability_id, group_id, points) VALUES (${msg.reply_to_message.from!.id}, ${abilities[0].id}, ${msg.chat.id}, 1) ON CONFLICT (user_id, ability_id, group_id) DO UPDATE SET points = points.points + 1 RETURNING points.points`;
 
-    await bot.sendMessage(msg.chat.id, `Added 1 <b>${match![1]}</b> point to @${msg.reply_to_message.from.username}\nThey now have <b>${points[0].points}</b> points`, {
+    const sent = await bot.sendMessage(msg.chat.id, `Added 1 <b>${match![1]}</b> point to @${msg.reply_to_message.from.username}\nThey now have <b>${points[0].points}</b> points\n\nAdded by: @${msg.from!.username}`, {
         reply_to_message_id: msg.message_id,
         parse_mode: 'HTML',
         reply_markup: {
             inline_keyboard: [
                 [
                     {
-                        text: 'Remove',
+                        text: '➕',
+                        callback_data: `add_point-${abilities[0].id}-${msg.reply_to_message.from!.id}`
+                    },
+                    {
+                        text: '➖',
                         callback_data: `remove_point-${abilities[0].id}-${msg.reply_to_message.from!.id}`
                     }
                 ]
             ]
         }
     });
+    const users = [
+        {
+            id: msg.from!.id,
+            username: msg.from!.username
+        }
+    ]
+
+    await sql`INSERT INTO messages (message_id, chat_id, users) VALUES (${sent.message_id}, ${sent.chat.id}, ${JSON.stringify(users)})`;
 });
 
 bot.onText(/^\/leaderboard(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
@@ -164,7 +176,17 @@ bot.on('callback_query', async (callbackQuery) => {
         const abilityId = callbackQuery.data.split('-')[1];
         const userId = callbackQuery.data.split('-')[2];
 
-        if (!callbackQuery.message?.reply_to_message?.from?.id) {
+        if (callbackQuery.from.id.toString() == userId) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 You cannot remove points from yourself",
+                show_alert: true
+            });
+            return;
+        }
+
+        const messages = await sql`SELECT users FROM messages WHERE message_id = ${callbackQuery.message!.message_id} AND chat_id = ${callbackQuery.message!.chat.id}`;
+
+        if (messages.length == 0) {
             bot.answerCallbackQuery(callbackQuery.id, {
                 text: "🚨 The original message got deleted",
                 show_alert: true
@@ -172,25 +194,146 @@ bot.on('callback_query', async (callbackQuery) => {
             return;
         }
 
-        if (callbackQuery.message?.reply_to_message?.from?.id != callbackQuery.from.id) {
+        let users = JSON.parse(messages[0].users);
+        if (!users.map(x => x.id).includes(callbackQuery.from.id)) {
             bot.answerCallbackQuery(callbackQuery.id, {
-                text: "🚨 You didn't add this point",
+                text: "🚨 You never addeded this point",
                 show_alert: true
             });
-        } else {
-            await sql`DELETE FROM points WHERE user_id = ${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id}`;
-            bot.answerCallbackQuery(callbackQuery.id, {
-                text: "👍 Removed point",
-                show_alert: true
-            });
-            // edit the message
-            await bot.editMessageText('<s>Canceled</s>', {
-                message_id: callbackQuery.message!.message_id,
-                chat_id: callbackQuery.message!.chat.id,
-                parse_mode: 'HTML',
-            });
+            return;
         }
+
+        const points = await sql`UPDATE points SET points = points.points - 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
+        users = users.filter(x => x.id != callbackQuery.from.id);
+
+        await sql`UPDATE messages SET users = ${JSON.stringify(users)} WHERE message_id = ${callbackQuery.message!.message_id} AND chat_id = ${callbackQuery.message!.chat.id}`;
+
+        let messageContent = callbackQuery.message!.text!.split('\n')[0];
+        messageContent += `\nThey now have <b>${points[0].points}</b> points`;
+
+        if (users.length > 0)
+            messageContent += `\n<b>Added by:</b> ${users.map(x => `@${x.username}`).join(', ')}`;
+
+        await bot.editMessageText(messageContent, {
+            message_id: callbackQuery.message!.message_id,
+            chat_id: callbackQuery.message!.chat.id,
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {
+                            text: '➕',
+                            callback_data: `add_point-${abilityId}-${userId}`
+                        },
+                        {
+                            text: '➖',
+                            callback_data: `remove_point-${abilityId}-${userId}`
+                        }
+                    ]
+                ]
+            }
+        });
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+            text: "👍 Removed point",
+        });
+    } else if (callbackQuery.data?.startsWith('add_point')) {
+        const abilityId = callbackQuery.data.split('-')[1];
+        const userId = callbackQuery.data.split('-')[2];
+
+        if (callbackQuery.from.id.toString() == userId) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 You cannot add points to yourself",
+                show_alert: true
+            });
+            return;
+        }
+
+        const messages = await sql`SELECT users FROM messages WHERE message_id = ${callbackQuery.message!.message_id} AND chat_id = ${callbackQuery.message!.chat.id}`;
+
+        if (messages.length == 0) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 The original message got deleted",
+                show_alert: true
+            });
+            return;
+        }
+
+        let users = JSON.parse(messages[0].users);
+        if (users.map(x => x.id).includes(callbackQuery.from.id)) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 You've already added this point",
+                show_alert: true
+            });
+            return;
+        }
+
+        const points = await sql`UPDATE points SET points = points.points - 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
+
+        users.push({
+            id: callbackQuery.from.id,
+            username: callbackQuery.from.username
+        });
+
+        await sql`UPDATE messages SET users = ${JSON.stringify(users)} WHERE message_id = ${callbackQuery.message!.message_id} AND chat_id = ${callbackQuery.message!.chat.id}`;
+
+        let messageContent = callbackQuery.message!.text!.split('\n')[0];
+        messageContent += `\nThey now have <b>${points[0].points}</b> points\n\n<b>Added by:</b> ${users.map(x => `@${x.username}`).join(', ')}`;
+
+        await bot.editMessageText(messageContent, {
+            message_id: callbackQuery.message!.message_id,
+            chat_id: callbackQuery.message!.chat.id,
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {
+                            text: '➕',
+                            callback_data: `add_point-${abilityId}-${userId}`
+                        },
+                        {
+                            text: '➖',
+                            callback_data: `remove_point-${abilityId}-${userId}`
+                        }
+                    ]
+                ]
+            }
+        });
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+            text: "👍 Added point",
+        });
     }
 
-    bot.answerCallbackQuery(callbackQuery.id);
 });
+
+// bot.on('inline_query', async (inlineQuery) => {
+//     const query = inlineQuery.query.toLowerCase();
+
+//     console.log(query);
+
+//     if (query.includes('leaderboard')) {
+//         console.log('check');
+//         const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${inlineQuery.}`;
+//         console.log(abilities)
+//     }
+
+//     // if (query.includes('leaderboard')) {
+//     //     console.log('check');
+//     //     const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${inlineQuery.from.id}`;
+
+//     //     const results: InlineQueryResultArticle[] = abilities.map((ability, index) => ({
+//     //         type: 'article',
+//     //         id: String(index),
+//     //         title: ability.name,
+//     //         input_message_content: {
+//     //             message_text: `🔥 Ability: <b>${ability.name}</b>`,
+//     //             parse_mode: 'HTML'
+//     //         }
+//     //     }));
+
+//     //     bot.answerInlineQuery(inlineQuery.id, results, {
+//     //         cache_time: 0
+//     //     });
+//     // }
+// });

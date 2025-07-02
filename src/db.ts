@@ -24,3 +24,11 @@ CREATE TABLE IF NOT EXISTS points (
     PRIMARY KEY (user_id, ability_id, group_id)
 );
 `
+await sql`
+    CREATE TABLE IF NOT EXISTS messages (
+        message_id TEXT,
+        chat_id TEXT,
+        users JSONB,
+        PRIMARY KEY (message_id, chat_id)
+    );
+`;
