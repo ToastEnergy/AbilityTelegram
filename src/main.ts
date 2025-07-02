@@ -268,7 +268,7 @@ bot.on('callback_query', async (callbackQuery) => {
             return;
         }
 
-        const points = await sql`UPDATE points SET points = points.points - 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
+        const points = await sql`UPDATE points SET points = points.points + 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
 
         users.push({
             id: callbackQuery.from.id,
