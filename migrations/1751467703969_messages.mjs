@@ -9,13 +9,18 @@ export const shorthands = undefined;
  * @returns {Promise<void> | void}
  */
 export const up = (pgm) => {
-    pgm.createTable('messages', {
-        message_id: { type: 'text', notNull: true },
-        chat_id: { type: 'text', notNull: true },
-        users: { type: 'jsonb', notNull: true },
-    }, {
-        primaryKey: ['message_id', 'chat_id'],
-    });
+  pgm.createTable(
+    "messages",
+    {
+      message_id: { type: "text", notNull: true },
+      chat_id: { type: "text", notNull: true },
+      users: { type: "jsonb", notNull: true },
+    },
+    {
+      primaryKey: ["message_id", "chat_id"],
+      ifNotExists: true,
+    }
+  );
 };
 
 /**
@@ -24,8 +29,8 @@ export const up = (pgm) => {
  * @returns {Promise<void> | void}
  */
 export const down = (pgm) => {
-    pgm.dropTable('messages', {
-        ifExists: true,
-        cascade: true,
-    });
+  pgm.dropTable("messages", {
+    ifExists: true,
+    cascade: true,
+  });
 };
