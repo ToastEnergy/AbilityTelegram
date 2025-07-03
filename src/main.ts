@@ -195,11 +195,11 @@ bot.onText(/\/list/, async (msg) => {
                 [
                     {
                         text: '◀️',
-                        callback_data: `list-${Math.ceil(count[0].count / offset)}`
+                        callback_data: `list-${Math.ceil(count[0].count / offset)}-${msg.from!.id}`
                     },
                     {
                         text: '▶️',
-                        callback_data: `list-2`
+                        callback_data: `list-2-${msg.from!.id}`
                     }
                 ]
             ]
@@ -372,12 +372,20 @@ bot.on('callback_query', async (callbackQuery) => {
         await bot.answerCallbackQuery(callbackQuery.id);
     } else if (callbackQuery.data?.startsWith('list')) {
 
+        if (callbackQuery.data.split('-')[2] !== callbackQuery.from.id.toString()) {
+            await bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 You did not start this list",
+                show_alert: true
+            });
+            return;
+        }
+
         const offset = 5;
         const page = parseInt(callbackQuery.data.split('-')[1]);
         const count = await sql`SELECT COUNT(*) FROM abilities WHERE group_id = ${callbackQuery.message!.chat.id}`;
         const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${callbackQuery.message!.chat.id} ORDER BY name ASC LIMIT ${offset} OFFSET ${(page - 1) * offset}`;
         if (abilities.length == 0) {
-            bot.answerCallbackQuery(callbackQuery.id, {
+            await bot.answerCallbackQuery(callbackQuery.id, {
                 text: "🚨 No abilities found",
                 show_alert: true
             });
@@ -395,16 +403,16 @@ bot.on('callback_query', async (callbackQuery) => {
                     [
                         {
                             text: '◀️',
-                            callback_data: (page - 1) <= 0 ? `list-${Math.ceil(count[0].count / offset)}` : `list-${page - 1}`
+                            callback_data: (page - 1) <= 0 ? `list-${Math.ceil(count[0].count / offset)}-${callbackQuery.from.id}` : `list-${page - 1}-${callbackQuery.from.id}`
                         },
                         {
                             text: '▶️',
-                            callback_data: (page + 1) <= Math.ceil(count[0].count / offset) ? `list-${page + 1}` : `list-1`
+                            callback_data: (page + 1) <= Math.ceil(count[0].count / offset) ? `list-${page + 1}-${callbackQuery.from.id}` : `list-1-${callbackQuery.from.id}`
                         }
                     ]
                 ]
             } : undefined
         });
-        bot.answerCallbackQuery(callbackQuery.id);
+        await bot.answerCallbackQuery(callbackQuery.id);
     }
 });
