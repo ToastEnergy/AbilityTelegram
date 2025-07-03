@@ -65,10 +65,7 @@ bot.onText(/^\/add(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
 type Ability = { id: number, name: string };
 
 bot.onText(/^\/leaderboard(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
-
     if (!match || !match[1]) {
-
-
         const abilities = await sql`SELECT id, name FROM abilities WHERE group_id = ${msg.chat.id}` as Ability[];
 
         const chunks: Ability[][] = [];
@@ -181,13 +178,33 @@ bot.onText(/^\/remove(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
 });
 
 bot.onText(/\/list/, async (msg) => {
-    const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${msg.chat.id}`;
+    const offset = 5;
+    const count = await sql`SELECT COUNT(*) FROM abilities WHERE group_id = ${msg.chat.id}`;
+    const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${msg.chat.id} ORDER BY name ASC LIMIT ${offset}`;
     if (abilities.length == 0)
         await bot.sendMessage(msg.chat.id, 'No abilities found', { reply_to_message_id: msg.message_id });
-    else {
-        const list = abilities.map(ability => `<b>${ability.name}</b>`).join('\n');
-        await bot.sendMessage(msg.chat.id, list, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
-    }
+
+
+    const list = abilities.map((ability, i) => `${i + 1}. <b>${ability.name}</b>`).join('\n') + `\n\n<i>Page: 1 / ${Math.ceil(count[0].count / offset)}</i>`;
+
+    await bot.sendMessage(msg.chat.id, list, {
+        reply_to_message_id: msg.message_id,
+        parse_mode: 'HTML',
+        reply_markup: count[0].count > offset ? {
+            inline_keyboard: [
+                [
+                    {
+                        text: '◀️',
+                        callback_data: `list-${Math.ceil(count[0].count / offset)}`
+                    },
+                    {
+                        text: '▶️',
+                        callback_data: `list-2`
+                    }
+                ]
+            ]
+        } : undefined
+    });
 });
 
 bot.on('callback_query', async (callbackQuery) => {
@@ -353,5 +370,41 @@ bot.on('callback_query', async (callbackQuery) => {
         });
 
         await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (callbackQuery.data?.startsWith('list')) {
+
+        const offset = 5;
+        const page = parseInt(callbackQuery.data.split('-')[1]);
+        const count = await sql`SELECT COUNT(*) FROM abilities WHERE group_id = ${callbackQuery.message!.chat.id}`;
+        const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${callbackQuery.message!.chat.id} ORDER BY name ASC LIMIT ${offset} OFFSET ${(page - 1) * offset}`;
+        if (abilities.length == 0) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 No abilities found",
+                show_alert: true
+            });
+            return;
+        }
+
+        const list = abilities.map((ability, i) => `${i + 1 + ((page - 1) * offset)}. <b>${ability.name}</b>`).join('\n') + `\n\n<i>Page: ${page} / ${Math.ceil(count[0].count / offset)}</i>`;
+
+        await bot.editMessageText(list, {
+            chat_id: callbackQuery.message!.chat.id,
+            message_id: callbackQuery.message!.message_id,
+            parse_mode: 'HTML',
+            reply_markup: count[0].count > offset ? {
+                inline_keyboard: [
+                    [
+                        {
+                            text: '◀️',
+                            callback_data: (page - 1) <= 0 ? `list-${Math.ceil(count[0].count / offset)}` : `list-${page - 1}`
+                        },
+                        {
+                            text: '▶️',
+                            callback_data: (page + 1) <= Math.ceil(count[0].count / offset) ? `list-${page + 1}` : `list-1`
+                        }
+                    ]
+                ]
+            } : undefined
+        });
+        bot.answerCallbackQuery(callbackQuery.id);
     }
 });
