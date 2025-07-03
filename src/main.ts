@@ -61,10 +61,29 @@ bot.onText(/^\/add(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
     await sql`INSERT INTO messages (message_id, chat_id, users) VALUES (${sent.message_id}, ${sent.chat.id}, ${JSON.stringify(users)})`;
 });
 
+
+type Ability = { id: number, name: string };
+
 bot.onText(/^\/leaderboard(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
 
     if (!match || !match[1]) {
-        await bot.sendMessage(msg.chat.id, 'Please specify an ability', { reply_to_message_id: msg.message_id });
+
+
+        const abilities = await sql`SELECT id, name FROM abilities WHERE group_id = ${msg.chat.id}` as Ability[];
+
+        const chunks: Ability[][] = [];
+        for (let i = 0; i < abilities.length; i += 3)
+            chunks.push(abilities.slice(i, i + 3));
+
+        await bot.sendMessage(msg.chat.id, 'Please specify an ability', {
+            reply_to_message_id: msg.message_id,
+            reply_markup: {
+                inline_keyboard: chunks.map(chunk => chunk.map(ability => ({
+                    text: ability.name,
+                    callback_data: `leaderboard-${ability.id}`
+                })))
+            }
+        });
         return;
     }
 
@@ -303,37 +322,36 @@ bot.on('callback_query', async (callbackQuery) => {
         bot.answerCallbackQuery(callbackQuery.id, {
             text: "👍 Added point",
         });
+    } else if (callbackQuery.data?.startsWith('leaderboard')) {
+        const abilityId = callbackQuery.data.split('-')[1];
+        const abilities = await sql`SELECT id, name from abilities WHERE group_id = ${callbackQuery.message!.chat.id} AND id = ${abilityId}`;
+        if (abilities.length == 0) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 Ability not found",
+                show_alert: true
+            });
+            return;
+        }
+
+        const points = await sql`SELECT user_id, points FROM points WHERE ability_id = ${abilities[0].id} AND group_id = ${callbackQuery.message!.chat.id} ORDER BY points DESC`;
+
+        let leaderboard = '';
+
+        for (const point of points) {
+            try {
+                const info = await bot.getChatMember(callbackQuery.message!.chat.id, point.user_id);
+                leaderboard += `@${info.user.username}: ${point.points}\n`;
+            } catch {
+                leaderboard += `<b>${point.user_id}</b>: ${point.points}\n`;
+            }
+        }
+
+        await bot.editMessageText(`<b>${abilities[0].name}</b> <u>leaderboard:</u>\n\n${leaderboard}`, {
+            chat_id: callbackQuery.message!.chat.id,
+            message_id: callbackQuery.message!.message_id,
+            parse_mode: 'HTML',
+        });
+
+        await bot.answerCallbackQuery(callbackQuery.id);
     }
-
 });
-
-// bot.on('inline_query', async (inlineQuery) => {
-//     const query = inlineQuery.query.toLowerCase();
-
-//     console.log(query);
-
-//     if (query.includes('leaderboard')) {
-//         console.log('check');
-//         const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${inlineQuery.}`;
-//         console.log(abilities)
-//     }
-
-//     // if (query.includes('leaderboard')) {
-//     //     console.log('check');
-//     //     const abilities = await sql`SELECT name FROM abilities WHERE group_id = ${inlineQuery.from.id}`;
-
-//     //     const results: InlineQueryResultArticle[] = abilities.map((ability, index) => ({
-//     //         type: 'article',
-//     //         id: String(index),
-//     //         title: ability.name,
-//     //         input_message_content: {
-//     //             message_text: `🔥 Ability: <b>${ability.name}</b>`,
-//     //             parse_mode: 'HTML'
-//     //         }
-//     //     }));
-
-//     //     bot.answerInlineQuery(inlineQuery.id, results, {
-//     //         cache_time: 0
-//     //     });
-//     // }
-// });
