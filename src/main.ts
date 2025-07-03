@@ -9,6 +9,10 @@ if (!process.env.DATABASE_URL || !process.env.TOKEN) {
 const sql = postgres(process.env.DATABASE_URL);
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
+bot.onText(/\/info/, async (msg) => {
+    await bot.sendMessage(msg.chat.id, `User ID: <code>${msg.from!.id}</code>\nChat ID: <code>${msg.chat.id}</code>`, { reply_to_message_id: msg.message_id, parse_mode: 'HTML' });
+});
+
 bot.onText(/^\/add(?:@\w+)?(?:\s+(.+))?$/, async (msg, match) => {
     if (!msg.reply_to_message?.from) {
         await bot.sendMessage(msg.chat.id, 'Please reply to a message', { reply_to_message_id: msg.message_id });
