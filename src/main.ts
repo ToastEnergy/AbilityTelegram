@@ -336,7 +336,7 @@ bot.on('callback_query', async (callbackQuery) => {
 
         // Check current points to prevent going negative
         const currentPoints = await sql`SELECT points FROM points WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id}`;
-        if (currentPoints.length === 0 || currentPoints[0].points <= 0) {
+        if (currentPoints.length === 0 || currentPoints[0].points < 1) {
             bot.answerCallbackQuery(callbackQuery.id, {
                 text: "🚨 Cannot remove points - user has 0 points",
                 show_alert: true
@@ -344,7 +344,7 @@ bot.on('callback_query', async (callbackQuery) => {
             return;
         }
 
-        const points = await sql`UPDATE points SET points = points.points - 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
+        const points = await sql`UPDATE points SET points = points - 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
         users = users.filter(x => x.id != callbackQuery.from.id);
 
         await sql`UPDATE messages SET users = ${JSON.stringify(users)} WHERE message_id = ${callbackQuery.message!.message_id} AND chat_id = ${callbackQuery.message!.chat.id}`;
@@ -411,7 +411,7 @@ bot.on('callback_query', async (callbackQuery) => {
             return;
         }
 
-        const points = await sql`UPDATE points SET points = points.points + 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
+        const points = await sql`UPDATE points SET points = points + 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
 
         users.push({
             id: callbackQuery.from.id,
