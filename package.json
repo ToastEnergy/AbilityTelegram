@@ -10,6 +10,8 @@
     "postgres": "^3.4.7"
   },
   "devDependencies": {
-    "node-pg-migrate": "^8.0.3"
+    "@types/node": "^24.9.2",
+    "node-pg-migrate": "^8.0.3",
+    "typescript": "^5.9.3"
   }
 }
