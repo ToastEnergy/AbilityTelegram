@@ -9,6 +9,8 @@ if (!process.env.DATABASE_URL || !process.env.TOKEN) {
 const sql = postgres(process.env.DATABASE_URL);
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
+console.log('🤖 Ability Telegram Bot starting...');
+
 bot.onText(/\/start/, async (msg) => {
     const welcomeMessage = `Welcome to Ability Telegram Bot! 🎯
 
@@ -332,6 +334,16 @@ bot.on('callback_query', async (callbackQuery) => {
             return;
         }
 
+        // Check current points to prevent going negative
+        const currentPoints = await sql`SELECT points FROM points WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id}`;
+        if (currentPoints.length === 0 || currentPoints[0].points <= 0) {
+            bot.answerCallbackQuery(callbackQuery.id, {
+                text: "🚨 Cannot remove points - user has 0 points",
+                show_alert: true
+            });
+            return;
+        }
+
         const points = await sql`UPDATE points SET points = points.points - 1 WHERE user_id=${userId} AND ability_id = ${abilityId} AND group_id = ${callbackQuery.message!.chat.id} RETURNING points`;
         users = users.filter(x => x.id != callbackQuery.from.id);
 
@@ -531,6 +543,11 @@ bot.on('callback_query', async (callbackQuery) => {
 // Error handling
 bot.on('polling_error', (error) => {
     console.error('Polling error:', error);
+});
+
+// Bot ready notification
+bot.on('polling', () => {
+    console.log('✅ Bot is running and polling for updates');
 });
 
 // Graceful shutdown
